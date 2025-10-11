@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace OSK.AI.FSM
 {
-    public class StateMachine
+    public class FinalStateMachine
     {
         private readonly Dictionary<IState, List<Transition>> _transitions = new Dictionary<IState, List<Transition>>();
         private readonly List<Transition> _anyTransitions = new List<Transition>();

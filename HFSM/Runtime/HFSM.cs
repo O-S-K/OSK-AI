@@ -14,13 +14,13 @@ public class HFSM
     
     public IState CurrentState => _currentState;
 
-    public void SetStart(IState start)
+    public void Start(IState start)
     {
         _currentState = start;
         _allStates.Add(start);
     }
 
-    public void AddTransition(IState from, IState to, Func<bool> condition, Func<string> desc)
+    public void Add(IState from, IState to, Func<bool> condition, Func<string> desc)
     {
         _transitions.Add(new HFSMTransition(from, to, condition, desc));
         
@@ -28,18 +28,18 @@ public class HFSM
         _allStates.Add(to);
     }
 
-    public void AddAnyTransition(IState to, Func<bool> condition, Func<string> desc)
+    public void Any(IState to, Func<bool> condition, Func<string> desc)
     {
         _anyTransitions.Add((to, condition, desc));
         _allStates.Add(to); 
     }
     
-    public void AddHFSMState(HierarchicalState hs)
+    public void AddHFSM(HierarchicalState hs)
     {
         _allStates.Add(hs);
     }
 
-    public void SetStopAllIf(Func<bool> condition) => _stopAllIf = condition;
+    public void StopAllIf(Func<bool> condition) => _stopAllIf = condition;
 
     public void OnUpdate()
     {
@@ -49,7 +49,7 @@ public class HFSM
         {
             if (t.Item2())
             {
-                SwitchState(t.Item1);
+                Switch(t.Item1);
                 return;
             }
         }
@@ -57,7 +57,7 @@ public class HFSM
         {
             if (t.From == _currentState && t.Condition())
             {
-                SwitchState(t.To);
+                Switch(t.To);
                 return;
             }
         }
@@ -72,7 +72,7 @@ public class HFSM
         _currentState?.OnFixedUpdate();
     }
 
-    private void SwitchState(IState newState)
+    private void Switch(IState newState)
     {
         if (_currentState == newState) return;
         _currentState?.OnExit();

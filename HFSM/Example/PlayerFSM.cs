@@ -37,21 +37,21 @@ public class PlayerFSM : MonoBehaviour, IFSMInspectable
                 .SubState(new PlayerSkill2State(this), out var skill2)
                 .SubState(new PlayerSkill3State(this), out var skill3)
 
-                .Transition(skill1, skill2, () => skillKeys[1], () => "Switch → Skill2")
-                .Transition(skill1, skill3, () => skillKeys[2], () => "Switch → Skill3")
-                .Transition(skill2, skill1, () => skillKeys[0], () => "Switch → Skill1")
-                .Transition(skill2, skill3, () => skillKeys[2], () => "Switch → Skill3")
-                .Transition(skill3, skill1, () => skillKeys[0], () => "Switch → Skill1")
-                .Transition(skill3, skill2, () => skillKeys[1], () => "Switch → Skill2")
+                .At(skill1, skill2, () => skillKeys[1], () => "Switch → Skill2")
+                .At(skill1, skill3, () => skillKeys[2], () => "Switch → Skill3")
+                .At(skill2, skill1, () => skillKeys[0], () => "Switch → Skill1")
+                .At(skill2, skill3, () => skillKeys[2], () => "Switch → Skill3")
+                .At(skill3, skill1, () => skillKeys[0], () => "Switch → Skill1")
+                .At(skill3, skill2, () => skillKeys[1], () => "Switch → Skill2")
 
                 .Start(skill1)
             .EndHFSM()
 
-            .Transition(idle, move, () => movePressed, () => "W Pressed")
-            .Transition(move, attack, () => attackPressed, () => "Attack Pressed")
-            .Transition(attack, idle, () => !attackPressed, () => "All Skills Done")
+            .At(idle, move, () => movePressed, () => "W Pressed")
+            .At(move, attack, () => attackPressed, () => "Attack Pressed")
+            .At(attack, idle, () => !attackPressed, () => "All Skills Done")
 
-            .AnyTransition(dead, () => health <= 0, () => $"Health {health:0} <= 0")
+            .Any(dead, () => health <= 0, () => $"Health {health:0} <= 0")
             .Start(idle)
             .Build();
     }

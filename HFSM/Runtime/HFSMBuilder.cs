@@ -14,18 +14,18 @@ public class HFSMBuilder
         return this;
     }
 
-    public HFSMBuilder Transition(IState from, IState to, Func<bool> condition, Func<string> description)
+    public HFSMBuilder At(IState from, IState to, Func<bool> condition, Func<string> description)
     {
         if (_hfsmStack.Count > 0)
-            _hfsmStack.Peek().AddTransition(from, to, condition, description);
+            _hfsmStack.Peek().At(from, to, condition, description);
         else
-            _hfsm.AddTransition(from, to, condition, description);
+            _hfsm.Add(from, to, condition, description);
         return this;
     }
     
-    public HFSMBuilder AnyTransition(IState to, Func<bool> condition, Func<string> description)
+    public HFSMBuilder Any(IState to, Func<bool> condition, Func<string> description)
     {
-        _hfsm.AddAnyTransition(to, condition, description);
+        _hfsm.Any(to, condition, description);
         _namedStates.TryAdd(to.GetType().Name, to);
         return this;
     }
@@ -34,14 +34,14 @@ public class HFSMBuilder
     {
         _hfsmStack.Push(state);
         _namedStates[state.Name] = state;
-        _hfsm.AddHFSMState(state);
+        _hfsm.AddHFSM(state);
         return this;
     }
 
     public HFSMBuilder SubState(IState sub, out IState refOut)
     {
         refOut = sub;
-        _hfsmStack.Peek().AddSubState(sub);
+        _hfsmStack.Peek().AddSub(sub);
         _namedStates[sub.GetType().Name] = sub;
         return this;
     }
@@ -49,9 +49,9 @@ public class HFSMBuilder
     public HFSMBuilder Start(IState start)
     {
         if (_hfsmStack.Count > 0)
-            _hfsmStack.Peek().SetStart(start);
+            _hfsmStack.Peek().Start(start);
         else
-            _hfsm.SetStart(start);
+            _hfsm.Start(start);
         return this;
     }
 
@@ -59,14 +59,14 @@ public class HFSMBuilder
     {
         var done = _hfsmStack.Pop();
         if (_hfsmStack.Count > 0)
-            _hfsmStack.Peek().AddSubState(done);
+            _hfsmStack.Peek().AddSub(done);
         return this;
     }
 
 
     public HFSMBuilder StopAllIf(Func<bool> condition)
     {
-        _hfsm.SetStopAllIf(condition);
+        _hfsm.StopAllIf(condition);
         return this;
     }
 

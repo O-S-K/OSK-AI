@@ -16,12 +16,12 @@ public class HierarchicalState : IState
         Name = name;
     }
 
-    public void AddSubState(IState state) => _subStates.Add(state);
-    public void AddTransition(IState from, IState to, Func<bool> condition, Func<string> description)
+    public void AddSub(IState state) => _subStates.Add(state);
+    public void At(IState from, IState to, Func<bool> condition, Func<string> description)
     {
         _transitions.Add(new HFSMTransition(from, to, condition, description));
     }
-    public void SetStart(IState state) => _startState = state;
+    public void Start(IState state) => _startState = state;
 
     public void OnEnter()
     {
@@ -39,7 +39,7 @@ public class HierarchicalState : IState
     {
         foreach (var t in _transitions)
         {
-            if (t.From == _currentSubState && t.Condition())
+            if (t != null && t.From == _currentSubState && t.Condition())
             {
                 _currentSubState.OnExit();
                 _currentSubState = t.To;
