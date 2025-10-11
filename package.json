@@ -1,0 +1,12 @@
+{
+    "name": "com.osk.osk-ai",
+    "version": "1.0.0",
+    "displayName": "OSK-AI",
+    "description": "A Unity package that integrates AI functionalities into your Unity projects, providing tools and features to enhance game development with artificial intelligence.",
+    "author": "QuyLe",
+    "unity": "2022.3",
+    "hideInEditor": false,
+    "dependencies": { 
+    }
+     
+}
