@@ -1,4 +1,4 @@
-namespace OSK.AI.FSM
+namespace OSK.AIFSM
 {
     public interface ISubStateMachine : IState
     {

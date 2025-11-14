@@ -3,7 +3,7 @@ using UnityEngine;
 using System;
 using System.Linq;
 
-namespace OSK.AI.FSM
+namespace OSK.AIFSM
 {
     public class FinalStateMachine
     {

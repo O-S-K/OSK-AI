@@ -1,94 +1,95 @@
-using System.Collections.Generic;
 using UnityEngine;
+using OSK.AIHFSM;
 
-public class Enemy : MonoBehaviour, IFSMInspectable
+namespace OSK.AI.HFSMExample
 {
-    public Transform player;
-    public float detectRange = 5f;
-    public float attackRange = 1.5f;
-    public float health = 100f;
-
-    public bool ReadyToPatrol { get; set; }
-
-    private HFSM _hfsm;
-
-    private void Start()
+    public class Enemy : MonoBehaviour, IFSMInspectable
     {
-        InitFSM();
-    }
+        public Transform player;
+        public float detectRange = 5f;
+        public float attackRange = 1.5f;
+        public float health = 100f;
 
-    private void Update()
-    {
-        _hfsm.OnUpdate();
-    }
-    
-    private void FixedUpdate()
-    {
-        _hfsm.OnFixedUpdate();
-    }
+        public bool ReadyToPatrol { get; set; }
 
-    private void InitFSM()
-    {
-        var combat = new HierarchicalState("Combat");
-        _hfsm = new HFSMBuilder()
-            .State(new IdleState(this), out var idle)
-            .State(new PatrolState(this), out var patrol)
-            .State(new DeadState(this), out var dead)
+        private HFSM _hfsm;
 
-            .HFSM(combat)
+        private void Start()
+        {
+            InitFSM();
+        }
+
+        private void Update()
+        {
+            _hfsm.OnUpdate();
+        }
+
+        private void FixedUpdate()
+        {
+            _hfsm.OnFixedUpdate();
+        }
+
+        private void InitFSM()
+        {
+            var combat = new HierarchicalState("Combat");
+            _hfsm = new HFSMBuilder()
+                .State(new IdleState(this), out var idle)
+                .State(new PatrolState(this), out var patrol)
+                .State(new DeadState(this), out var dead)
+                .HFSM(combat)
                 .SubState(new ChaseState(this), out var chase)
                 .SubState(new AttackState(this), out var attack)
                 .At(chase, attack, () => IsPlayerInAttackRange(), () => $"Dist {DistanceToPlayer:0.0} < {attackRange}")
                 .At(attack, chase, () => !IsPlayerInAttackRange(), () => $"Dist {DistanceToPlayer:0.0} > {attackRange}")
                 .Start(chase)
-            .EndHFSM()
+                .EndHFSM()
+                .At(idle, patrol, () => ReadyToPatrol, () => $"Pos Patrol {transform.position:0.0}")
+                .At(patrol, combat, () => IsPlayerDetected(), () => $"Dist {DistanceToPlayer:0.0} > {detectRange}")
+                .At(combat, patrol, () => !IsPlayerDetected(), () => $"Dist {DistanceToPlayer:0.0} < {detectRange}")
+                .Any(dead, () => health <= 0, () => $"Health {health:0} <= 0")
+                // .StopAllIf(() => health <= 0)
+                .Start(idle)
+                .Build();
+        }
 
-            .At(idle, patrol, () => ReadyToPatrol, () => $"Pos Patrol {transform.position:0.0}")
-            .At(patrol, combat, () => IsPlayerDetected(), () => $"Dist {DistanceToPlayer:0.0} > {detectRange}")
-            .At(combat, patrol, () => !IsPlayerDetected(), () => $"Dist {DistanceToPlayer:0.0} < {detectRange}")
-            .Any(dead, () => health <= 0, () => $"Health {health:0} <= 0")
-           // .StopAllIf(() => health <= 0)
-            .Start(idle)
-            .Build();
-    }
+        public float DistanceToPlayer => Vector3.Distance(transform.position, player.position);
 
-    public float DistanceToPlayer => Vector3.Distance(transform.position, player.position);
+        public bool IsPlayerDetected()
+        {
+            if (player == null) return false;
+            return DistanceToPlayer <= detectRange;
+        }
 
-    public bool IsPlayerDetected()
-    {
-        if (player == null) return false;
-        return DistanceToPlayer <= detectRange;
-    }
+        public bool IsPlayerInAttackRange()
+        {
+            if (player == null) return false;
+            return DistanceToPlayer <= attackRange;
+        }
 
-    public bool IsPlayerInAttackRange()
-    {
-        if (player == null) return false;
-        return DistanceToPlayer <= attackRange;
-    }
+        public void Patrol()
+        {
+            transform.Translate(Vector3.forward * Time.deltaTime);
+        }
 
-    public void Patrol()
-    {
-        transform.Translate(Vector3.forward * Time.deltaTime);
-    }
+        public void ChasePlayer()
+        {
+            if (player == null) return;
+            transform.position = Vector3.MoveTowards(transform.position, player.position, Time.deltaTime * 2f);
+        }
 
-    public void ChasePlayer()
-    {
-        if (player == null) return;
-        transform.position = Vector3.MoveTowards(transform.position, player.position, Time.deltaTime * 2f);
-    }
+        public void AttackPlayer()
+        {
+            Debug.Log("Enemy attacking player!");
+        }
 
-    public void AttackPlayer()
-    {
-        Debug.Log("Enemy attacking player!");
-    }
+        public HFSM GetFSM()
+        {
+            return _hfsm;
+        }
 
-    public HFSM GetFSM()
-    {
-        return _hfsm;
-    }
-
-    public string GetFSMName()
-    {
-        return "Enemy FSM";
+        public string GetFSMName()
+        {
+            return "Enemy FSM";
+        }
     }
 }

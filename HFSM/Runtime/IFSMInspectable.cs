@@ -1,5 +1,8 @@
-public interface IFSMInspectable
+namespace OSK.AIHFSM
 {
-    HFSM GetFSM();
-    string GetFSMName();
+    public interface IFSMInspectable
+    {
+        HFSM GetFSM();
+        string GetFSMName();
+    }
 }

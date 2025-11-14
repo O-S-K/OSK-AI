@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace OSK.AI.FSM
+namespace OSK.AIFSM
 {
     public interface IState
     {

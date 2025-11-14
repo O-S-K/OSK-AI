@@ -1,7 +1,7 @@
 using OSK.AI.Enemy;
 using UnityEngine;
 
-namespace OSK.AI.TreeBehavior.Enemy
+namespace OSK.AITreeBehavior.Enemy
 {
     public class EnemyAI : BehaviorTree
     {
@@ -35,10 +35,8 @@ namespace OSK.AI.TreeBehavior.Enemy
             // Random: 50% idle, 50% patrol when idle
             var idleVariation = new Node_RandomSelector(true, waitIdle, patrol);
 
-            // Combine all
-            var root = new Selector(chaseAndAttack, patrolIfLost, idleVariation);
-
-            return root;
+            // Create Root Selector
+            return new Selector(chaseAndAttack, patrolIfLost, idleVariation);
         }
 
 #if UNITY_EDITOR

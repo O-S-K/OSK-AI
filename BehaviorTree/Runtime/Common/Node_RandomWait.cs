@@ -1,6 +1,6 @@
 using UnityEngine;
  
-namespace OSK.AI.TreeBehavior
+namespace OSK.AITreeBehavior
 {
     public class Node_RandomWait : Node
     {

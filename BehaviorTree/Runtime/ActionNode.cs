@@ -1,6 +1,6 @@
 using System;
 
-namespace OSK.AI.TreeBehavior
+namespace OSK.AITreeBehavior
 {
     public class ActionNode : Node
     {

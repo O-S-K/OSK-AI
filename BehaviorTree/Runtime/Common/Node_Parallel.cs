@@ -1,7 +1,7 @@
-using OSK.AI.TreeBehavior;
+using OSK.AITreeBehavior;
 using System.Collections.Generic;
 
-namespace OSK.AI.TreeBehavior
+namespace OSK.AITreeBehavior
 {
     public class Node_Parallel : Node
     {

@@ -2,7 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 using System.Collections.Generic;
-using OSK.AI.TreeBehavior;
+using OSK.AITreeBehavior;
 
 namespace OSK.AI.EditorTools
 {
