@@ -1,7 +1,7 @@
 using OSK.AI.Enemy;
 using UnityEngine;
 
-namespace OSK.AITreeBehavior.Enemy
+namespace OSK.AIBT.Enemy
 {
     public class EnemyAI : BehaviorTree
     {

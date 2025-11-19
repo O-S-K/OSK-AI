@@ -1,6 +1,6 @@
-using OSK.AITreeBehavior;
+using OSK.AIBT;
 
-namespace OSK.AITreeBehavior
+namespace OSK.AIBT
 {
     public class Node_Inverter : Node
     {

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace OSK.AITreeBehavior
+namespace OSK.AIBT
 {
     public class Selector : Node
     {

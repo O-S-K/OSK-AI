@@ -1,5 +1,5 @@
 using UnityEngine;
-using OSK.AITreeBehavior;
+using OSK.AIBT;
 
 namespace OSK.AI.Enemy
 {

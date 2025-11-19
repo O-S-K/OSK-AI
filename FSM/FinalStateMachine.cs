@@ -1,10 +1,17 @@
-using System.Collections.Generic;
-using UnityEngine;
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
+using UnityEngine;
 
 namespace OSK.AIFSM
 {
+    /// <summary>
+    /// FinalStateMachine with richer Transition metadata for debugging and editor display.
+    /// - Transition contains Description (manual or auto from Expression), Priority, and last evaluation info.
+    /// - GetTransition picks the highest-priority true transition (any-transitions checked first).
+    /// - Tick logs evaluation results in the Editor (won't spam builds).
+    /// </summary>
     public class FinalStateMachine
     {
         private readonly Dictionary<IState, List<Transition>> _transitions = new Dictionary<IState, List<Transition>>();
@@ -12,14 +19,26 @@ namespace OSK.AIFSM
         private static readonly List<Transition> EmptyTransitions = new List<Transition>(0);
         private List<Transition> _currentTransitions = new List<Transition>();
         private IState _currentState;
+        public bool DebugLogs { get; set; } = false;
+
+        // PUBLIC API ----------------------------------------------------------------
 
         public void Tick()
         {
             var transition = GetTransition();
             if (transition != null)
             {
-                // check transition if condition is met
+                // perform transition
+#if UNITY_EDITOR
+                if (DebugLogs)
+                {
+                    Debug.Log(
+                        $"[FSM] Transition TRIGGERED: '{transition.GetDescription()}' from '{transition.FromName}' " +
+                        $"-> '{transition.ToName}' (priority {transition.Priority}) at t={Time.time}");
+                }
+#endif
                 Set(transition.To);
+                transition.MarkTriggered(Time.time);
             }
 
             _currentState?.Tick();
@@ -30,64 +49,45 @@ namespace OSK.AIFSM
             _currentState?.FixedTick();
         }
 
-        // Start 
+        /// <summary>Initialize and enter start state.</summary>
         public void Init(IState state) => Set(state);
 
-        private void Set(IState state)
+        /// <summary>Return current state instance.</summary>
+        public IState GetCurrentState() => _currentState;
+
+        /// <summary>Color of current state's gizmo (or black if none).</summary>
+        public Color GetGizmoColor() => _currentState?.GizmoState() ?? Color.black;
+
+        /// <summary>Return current state's type name or "No State".</summary>
+        public string GetCurrentStateName() => _currentState?.GetType().Name ?? "No State";
+
+        /// <summary>Return all states registered in this FSM.</summary>
+        public List<IState> GetStates() => _transitions.Keys.ToList();
+
+        /// <summary>Return copy of transitions for a given state (for editor display).</summary>
+        public List<Transition> GetTransitionsForState(IState state)
         {
-            _currentState?.OnExit();
-            _currentState = state;
-
-            _transitions.TryGetValue(_currentState, out _currentTransitions);
-            _currentTransitions ??= EmptyTransitions;
-
-            _currentState.OnEnter();
+            if (state == null) return new List<Transition>();
+            return _transitions.TryGetValue(state, out var list) ? new List<Transition>(list) : new List<Transition>();
         }
 
-        public void Add(IState[] states)
-        {
-            foreach (var state in states)
-            {
-                Add(state);
-            }
-        }
+        /// <summary>Return copy of any-transitions (for editor display).</summary>
+        public List<Transition> GetAnyTransitions() => new List<Transition>(_anyTransitions);
 
-        public void Add(IState state)
-        {
-            if (_transitions.ContainsKey(state))
-                return;
-            _transitions.Add(state, new List<Transition>());
-        }
-
-        public void At(IState from, IState to, Func<bool> predicate)
-        {
-            // Check if there are already transitions from the 'from' state
-            if (!_transitions.TryGetValue(from, out var transitions))
-            {
-                // No transitions from the 'from' state, create a new list
-                transitions = new List<Transition>();
-                // Add to dict
-                _transitions[from] = transitions;
-            }
-
-            // Add the transition we passed in to the List of transitions of the 'from' state
-            transitions.Add(new Transition(from, to, predicate));
-        }
-
-        public void Any(IState state, Func<bool> predicate)
-        {
-            // Add the transition to the list of any transitions
-            _anyTransitions.Add(new Transition(null, state, predicate));
-        }
-
+        /// <summary>Remove a state and its transitions from the machine.</summary>
         public void Remove(IState state)
         {
-            if (_transitions.ContainsKey(state))
+            if (state == null) return;
+            _transitions.Remove(state);
+            // remove any transitions targeting this state
+            _anyTransitions.RemoveAll(t => t.To == state);
+            foreach (var kv in _transitions.Values)
             {
-                _transitions.Remove(state);
+                kv.RemoveAll(t => t.To == state || t.From == state);
             }
         }
 
+        /// <summary>Clear all states and transitions.</summary>
         public void RemoveAll()
         {
             _transitions.Clear();
@@ -96,61 +96,397 @@ namespace OSK.AIFSM
             _currentState = null;
         }
 
+        // STATE & TRANSITION REGISTRATION --------------------------------------------
 
-        public List<IState> GetStates()
+        public void Add(IState[] states)
         {
-            return _transitions.Keys.ToList();
+            foreach (var state in states) Add(state);
         }
 
-        private Transition GetTransition()
+        public void Add(IState state)
         {
-            // Iterate through all any state transitions first
-            foreach (var transition in _anyTransitions.Where(transition => transition.Condition()
-                                                                           // Dont Allow Any to Same State Transition.
-                                                                           && transition.To != _currentState))
+            if (state == null) return;
+            if (_transitions.ContainsKey(state)) return;
+            _transitions.Add(state, new List<Transition>());
+        }
+
+        /// <summary>
+        /// Add a transition from -> to using a predicate and optional description/priority.
+        /// </summary>
+        public void At(IState from, IState to, Func<bool> predicate, string description = null, int priority = 0)
+        {
+            if (from == null || to == null || predicate == null) return;
+            if (!_transitions.TryGetValue(from, out var list))
             {
-                // If a condition is met, return that transition
-                return transition;
+                list = new List<Transition>();
+                _transitions[from] = list;
             }
 
-            // If no 'any' transition is found, check the current state's transitions
-            return _currentTransitions.FirstOrDefault(transition => transition.Condition());
+            list.Add(new Transition(from, to, predicate, description, priority));
         }
 
+        /// <summary>
+        /// Overload: supply Expression to auto-generate a description (useful in editor).
+        /// The expression is compiled and used as the predicate.
+        /// </summary>
+        public void At(IState from, IState to, Expression<Func<bool>> expr, int priority = 0)
+        {
+            if (from == null || to == null || expr == null) return;
+            var compiled = expr.Compile();
+            var description = expr.Body.ToString();
+            if (!_transitions.TryGetValue(from, out var list))
+            {
+                list = new List<Transition>();
+                _transitions[from] = list;
+            }
+
+            list.Add(new Transition(from, to, compiled, description, priority, expr));
+        }
+
+        /// <summary>Add 'any' transition (from any state into 'state').</summary>
+        public void Any(IState state, Func<bool> predicate, string description = null, int priority = 0)
+        {
+            if (state == null || predicate == null) return;
+            _anyTransitions.Add(new Transition(null, state, predicate, description, priority));
+        }
+
+        /// <summary>Overload for Any with Expression to auto-generate description.</summary>
+        public void Any(IState state, Expression<Func<bool>> expr, int priority = 0)
+        {
+            if (state == null || expr == null) return;
+            var compiled = expr.Compile();
+            var description = expr.Body.ToString();
+            _anyTransitions.Add(new Transition(null, state, compiled, description, priority, expr));
+        }
+
+        // PRIVATE STATE MANAGEMENT ---------------------------------------------------
+
+        private void Set(IState state)
+        {
+            _currentState?.OnExit();
+            _currentState = state;
+
+            if (_currentState != null)
+            {
+                _transitions.TryGetValue(_currentState, out _currentTransitions);
+                _currentTransitions ??= EmptyTransitions;
+                _currentState.OnEnter();
+            }
+            else
+            {
+                _currentTransitions = EmptyTransitions;
+            }
+        }
 
         public void Exit()
         {
             _currentState?.OnExit();
             _currentState = null;
+            _currentTransitions = EmptyTransitions;
         }
 
-        private class Transition
-        {
-            public IState From { get; }
-            public Func<bool> Condition { get; }
-            public IState To { get; }
+        // TRANSITION RESOLUTION ------------------------------------------------------
 
-            public Transition(IState from, IState to, Func<bool> condition)
+        /// <summary>
+        /// Evaluate transitions and return the best Transition to take (or null).
+        /// Priority logic: check _anyTransitions first (they can override), then current state's transitions.
+        /// Within a set, pick highest priority, tie-breaker = insertion order.
+        /// </summary>
+        private Transition GetTransition()
+        {
+            // Evaluate any-transitions
+            var anyTrue = EvaluateTransitions(_anyTransitions)
+                .Where(t => t.Result == true && t.To != _currentState)
+                .ToList();
+            if (anyTrue.Count > 0)
             {
-                From = from;
-                To = to;
-                Condition = condition;
+                // choose highest priority
+                var chosenAny = anyTrue.OrderByDescending(t => t.Priority).First();
+                return chosenAny;
+            }
+
+            // Evaluate current state's transitions
+            if (_currentTransitions == null || _currentTransitions.Count == 0) return null;
+
+            var currTrue = EvaluateTransitions(_currentTransitions)
+                .Where(t => t.Result == true)
+                .ToList();
+
+            if (currTrue.Count == 0) return null;
+
+            // pick highest priority
+            var chosen = currTrue.OrderByDescending(t => t.Priority).First();
+            return chosen;
+        }
+
+        /// <summary>
+        /// Evaluate a list of transitions and update their LastEvaluateTime/Result. Returns the evaluated list for convenience.
+        /// This method will also log each evaluation in the Editor with timestamp.
+        /// </summary>
+        private IEnumerable<Transition> EvaluateTransitions(IEnumerable<Transition> list)
+        {
+            foreach (var t in list)
+            {
+                bool ok = false;
+                try
+                {
+                    ok = t.Condition();
+                }
+                catch (Exception e)
+                {
+                    if (DebugLogs)
+                    {
+#if UNITY_EDITOR
+                        Debug.LogError($"[FSM] Transition condition threw exception: {e.Message}\n" +
+                                       $"Transition: {t.GetDescription()}");
+#endif
+                    }
+
+                    ok = false;
+                }
+
+                t.MarkEvaluated(Time.time, ok);
+
+                if (DebugLogs)
+                {
+#if UNITY_EDITOR
+                    Debug.Log($"[FSM] Eval '{t.GetDescription()}' (from '{t.FromName}' " +
+                              $"-> '{t.ToName}') => {ok} (priority {t.Priority}) at t={Time.time}");
+                }
+#endif
+
+                yield return t;
             }
         }
 
-        public IState GetCurrentState()
-        {
-            return _currentState;
-        }
+        // TRANSITION NESTED TYPE -----------------------------------------------------
 
-        public Color GetGizmoColor()
+        /// <summary>
+        /// Transition metadata class — public so Editor can read it.
+        /// </summary>
+        // --- Replace the old Transition nested class with this new one ---
+        public class Transition
         {
-            return _currentState?.GizmoState() ?? Color.black;
-        }
+            public IState From { get; }
+            public IState To { get; }
+            public Func<bool> Condition { get; }
+            public string Description { get; private set; }
+            public Expression<Func<bool>> Expr { get; }
+            public int Priority { get; }
 
-        private string GetCurrentStateName()
-        {
-            return _currentState?.GetType().Name ?? "No State";
+            // debug info:
+            public float LastEvaluatedTime { get; private set; } = -1f;
+            public bool? Result { get; private set; } = null; // null = not evaluated yet
+            public float LastTriggeredTime { get; private set; } = -1f;
+
+            public Transition(IState from, IState to, Func<bool> condition, string description = null, int priority = 0,
+                Expression<Func<bool>> expr = null)
+            {
+                From = from;
+                To = to;
+                Condition = condition ?? throw new ArgumentNullException(nameof(condition));
+                Expr = expr;
+                Priority = priority;
+                Description = !string.IsNullOrWhiteSpace(description)
+                    ? description
+                    : (expr != null ? SimplifyExpression(expr) : "Lambda");
+            }
+
+            public void MarkEvaluated(float time, bool result)
+            {
+                LastEvaluatedTime = time;
+                Result = result;
+            }
+
+            public void MarkTriggered(float time)
+            {
+                LastTriggeredTime = time;
+            }
+
+            public string FromName => From?.GetType().Name ?? "Any";
+            public string ToName => To?.GetType().Name ?? "Null";
+
+            public string GetDescription() => Description ?? (Expr != null ? SimplifyExpression(Expr) : "Lambda");
+
+            public override string ToString()
+            {
+                return $"[{Priority}] {GetDescription()} ({FromName} -> {ToName})";
+            }
+
+            // -------------------- Pretty/Runtime-aware expression description --------------------
+            // Try to produce friendly string like "dist 0.32 < 5"
+            private static string SimplifyExpression(Expression<Func<bool>> expr)
+            {
+                try
+                {
+                    var body = expr.Body;
+
+                    // If binary comparison, try get left/right and operator
+                    if (body is BinaryExpression be && IsComparisonOp(be.NodeType))
+                    {
+                        var op = NodeTypeToOp(be.NodeType);
+
+                        // try evaluate left and right values (safe)
+                        var leftStr = ExprPartToString(be.Left);
+                        var rightStr = ExprPartToString(be.Right);
+
+                        // if both sides produced something, show "leftVal op rightVal" or "leftName leftVal op rightName rightVal"
+                        // prefer showing readable names when possible
+                        return $"{leftStr} {op} {rightStr}";
+                    }
+
+                    // If method call like IsPlayerInRange(x) just show it compact
+                    if (body is MethodCallExpression mce)
+                    {
+                        var name = mce.Method.Name;
+                        var args = mce.Arguments.Select(a => ExprPartToString(a)).ToArray();
+                        return $"{name}({string.Join(", ", args)})";
+                    }
+
+                    // fallback to body.ToString() but clean parameter prefixes (closure names)
+                    return CleanExpressionString(body.ToString());
+                }
+                catch
+                {
+                    return "[expr]";
+                }
+            }
+
+            private static bool IsComparisonOp(ExpressionType t)
+            {
+                return t == ExpressionType.GreaterThan
+                       || t == ExpressionType.GreaterThanOrEqual
+                       || t == ExpressionType.LessThan
+                       || t == ExpressionType.LessThanOrEqual
+                       || t == ExpressionType.Equal
+                       || t == ExpressionType.NotEqual;
+            }
+
+            private static string NodeTypeToOp(ExpressionType t)
+            {
+                return t switch
+                {
+                    ExpressionType.GreaterThan => ">",
+                    ExpressionType.GreaterThanOrEqual => ">=",
+                    ExpressionType.LessThan => "<",
+                    ExpressionType.LessThanOrEqual => "<=",
+                    ExpressionType.Equal => "==",
+                    ExpressionType.NotEqual => "!=",
+                    _ => t.ToString()
+                };
+            }
+
+            // Try to produce "name value" or just "value" or "name" for expression part
+            private static string ExprPartToString(Expression part)
+            {
+                // If constant, show the constant
+                if (part is ConstantExpression ce)
+                {
+                    return ConstantToShortString(ce.Value);
+                }
+
+                // If MemberAccess to a captured variable or field/property, try compile sub-expression to get runtime value
+                try
+                {
+                    // Create lambda that returns object for the part (convert to object)
+                    var objectExpr = Expression.Convert(part, typeof(object));
+                    var lambda = Expression.Lambda<Func<object>>(objectExpr);
+                    Func<object> getter = null;
+                    try
+                    {
+                        getter = lambda.Compile();
+                    }
+                    catch
+                    {
+                        // compilation may fail for expressions referencing parameters; fallback
+                    }
+
+                    string name = ShortNameOfExpression(part);
+
+                    if (getter != null)
+                    {
+                        object val = null;
+                        try
+                        {
+                            val = getter();
+                        }
+                        catch
+                        {
+                            val = null;
+                        }
+
+                        if (val != null)
+                        {
+                            // format numbers with limited precision
+                            return $"{name} {ConstantToShortString(val)}";
+                        }
+                    }
+
+                    // fallback: return short name only
+                    return name;
+                }
+                catch
+                {
+                    // final fallback: the raw ToString cleaned
+                    return CleanExpressionString(part.ToString());
+                }
+            }
+
+            private static string ShortNameOfExpression(Expression e)
+            {
+                // If MemberExpression like this.health or someVar, return member.Name
+                if (e is MemberExpression me)
+                {
+                    return me.Member.Name;
+                }
+
+                if (e is MethodCallExpression mc)
+                {
+                    return mc.Method.Name;
+                }
+
+                // fallback: clean whole expression
+                return CleanExpressionString(e.ToString());
+            }
+
+            private static string CleanExpressionString(string s)
+            {
+                if (string.IsNullOrEmpty(s)) return s;
+                // remove closure prefixes like value(<>c__DisplayClass...).x => x
+                // common pattern: Convert(value(Program+<>c__DisplayClass...).field)
+                // We'll keep it simple: remove text before last '.' if it contains '<'
+                var parts = s.Split('.');
+                if (parts.Length > 1)
+                {
+                    var last = parts.Last();
+                    if (last.Contains("<") || last.Contains(">") || last.Contains("DisplayClass")) // heuristics
+                    {
+                        // try return last token that looks like identifier
+                        for (int i = parts.Length - 1; i >= 0; i--)
+                        {
+                            var p = parts[i];
+                            if (!p.Contains("<") && !p.Contains(">") && !p.Contains("DisplayClass"))
+                            {
+                                return p;
+                            }
+                        }
+                    }
+
+                    return parts.Last();
+                }
+
+                return s;
+            }
+
+            private static string ConstantToShortString(object val)
+            {
+                if (val == null) return "null";
+                if (val is float f) return f.ToString("F2");
+                if (val is double d) return d.ToString("F2");
+                if (val is int or long or short or byte) return val.ToString();
+                if (val is bool b) return b ? "true" : "false";
+                return val.ToString();
+            }
         }
     }
 }

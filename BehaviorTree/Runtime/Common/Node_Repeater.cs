@@ -1,5 +1,5 @@
  
-namespace OSK.AITreeBehavior
+namespace OSK.AIBT
 {
     public class Node_Repeater : Node
     {
