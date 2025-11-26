@@ -32,9 +32,7 @@ namespace OSK.AIFSM
 #if UNITY_EDITOR
                 if (DebugLogs)
                 {
-                    Debug.Log(
-                        $"[FSM] Transition TRIGGERED: '{transition.GetDescription()}' from '{transition.FromName}' " +
-                        $"-> '{transition.ToName}' (priority {transition.Priority}) at t={Time.time}");
+                    Debug.Log($"[FSM] Transition TRIGGERED: '{transition.GetDescription()}' from '{transition.FromName}' " +  $"-> '{transition.ToName}' (priority {transition.Priority}) at t={Time.time}");
                 }
 #endif
                 Set(transition.To);
@@ -247,9 +245,9 @@ namespace OSK.AIFSM
 
                 t.MarkEvaluated(Time.time, ok);
 
+#if UNITY_EDITOR
                 if (DebugLogs)
                 {
-#if UNITY_EDITOR
                     Debug.Log($"[FSM] Eval '{t.GetDescription()}' (from '{t.FromName}' " +
                               $"-> '{t.ToName}') => {ok} (priority {t.Priority}) at t={Time.time}");
                 }
