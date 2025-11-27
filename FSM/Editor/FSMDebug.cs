@@ -223,8 +223,16 @@ public class FSMDebug : EditorWindow
                 return;
             }
 
-            // show owner and ping
-            EditorGUILayout.LabelField("Owner:", (det.owner as MonoBehaviour)?.gameObject.name ?? SafeOwnerTypeName(det.owner));
+            if (det.owner == null)   
+            {
+                EditorGUILayout.LabelField("Owner:", "None (Destroyed)");
+            }
+            else
+            {
+                var mb = det.owner as MonoBehaviour;
+                string ownerName = mb != null ? mb.gameObject.name : SafeOwnerTypeName(det.owner);
+                EditorGUILayout.LabelField("Owner:", ownerName);
+            }
             if (GUILayout.Button("Ping Owner Object"))
             {
                 var mb = det.owner as MonoBehaviour;
