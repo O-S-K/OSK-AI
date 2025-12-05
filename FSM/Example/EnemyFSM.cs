@@ -7,17 +7,23 @@ namespace FSM_Example
 {
     public class EnemyFSM : MonoBehaviour, IFSMInspectableFinal
     {
-        [Header("AI Targets & Patrol")] public Transform[] patrolPoints;
+        [Header("AI Targets & Patrol")]
+        public Transform[] patrolPoints;
+
         public Transform player;
 
-        [Header("Stats")] public float detectionRange = 8f;
+        [Header("Stats")]
+        public float detectionRange = 8f;
+
         public float attackRange = 1.6f;
         public float fleeHealthThreshold = 20f;
         public float maxHealth = 100f;
         public float moveSpeed = 3.5f;
         public float rotateSpeed = 8f;
 
-        [Header("Debug")] public bool debugLogs = true;
+        [Header("Debug")]
+        public bool debugLogs = true;
+        public bool isKnockbacked = false;
 
         [Button]
         private void ContextOpenFSMDebugger()
@@ -29,7 +35,9 @@ namespace FSM_Example
         }
 
         // runtime
-        [ReadOnly] public float health;
+        [ReadOnly]
+        public float health;
+
         private FinalStateMachine fsm;
 
         // expose for debug window/reflection
@@ -38,7 +46,8 @@ namespace FSM_Example
         public string GetFSMName() => gameObject.name + ".FinalFSM";
 
         // state refs
-        private IState idleState, patrolState, chaseState, attackState, fleeState, deadState;
+        [SerializeReference]
+        private IState idleState, patrolState, chaseState, attackState, fleeState, knockback, deadState;
 
         // movement helper
         private Vector3 currentDestination;
@@ -123,30 +132,30 @@ namespace FSM_Example
             chaseState = new S_Chase(this);
             attackState = new S_Attack(this);
             fleeState = new S_Flee(this);
+            knockback = new S_Knockback(this);
             deadState = new S_Dead(this);
 
             // build with builder for clearer code
-            var builder = new FSMBuilder();
-            builder.Add(idleState, patrolState, chaseState, attackState, fleeState, deadState);
+            var builder = new FSMBuilder()
+            //builder.Add(idleState, patrolState, chaseState, attackState, fleeState, knockback, deadState)
+                .AddAll(this)
+                .Any(deadState, () => health <= 0f, priority: 100)
+                // flee if low health
+                .Any(fleeState, () => health > 0f && health <= fleeHealthThreshold, priority: 50)
+                .Any(knockback , () => isKnockbacked, priority: 30) // placeholder for knockback trigger
+                .Exit(knockback , () => !isKnockbacked, priority: 5) // placeholder to exit knockback
 
-            // Any transitions (expression overloads -> auto description in editor)
-            // dead highest priority
-            builder.AnyExpr(deadState, () => health <= 0f, priority: 100);
-            // flee if low health
-            builder.AnyExpr(fleeState, () => health > 0f && health <= fleeHealthThreshold, priority: 50);
-
-            // Normal transitions (use expression variety)
-            builder.AtExpr(idleState, patrolState, () => HasPatrolPoints(), priority: 0);
-            builder.AtExpr(patrolState, idleState, () => false, priority: 0); // placeholder if you want timer
-            builder.AtExpr(idleState, chaseState, () => IsPlayerInRange(detectionRange), priority: 10);
-            builder.AtExpr(patrolState, chaseState, () => IsPlayerInRange(detectionRange), priority: 10);
-            builder.AtExpr(chaseState, attackState, () => IsPlayerInRange(attackRange), priority: 20);
-            builder.AtExpr(attackState, chaseState, () => !IsPlayerInRange(attackRange), priority: 5);
-            builder.AtExpr(chaseState, patrolState, () => !IsPlayerInRange(detectionRange) && HasPatrolPoints(),
-                priority: 0);
-            builder.AtExpr(fleeState, idleState, () => health > fleeHealthThreshold, priority: 0);
-
-            builder.Init(idleState);
+                // Normal transitions (use expression variety)
+                .At(idleState, patrolState, () => HasPatrolPoints(), priority: 0)
+                .At(patrolState, idleState, () => false, priority: 0) // placeholder if you want timer
+                .At(idleState, chaseState, () => IsPlayerInRange(detectionRange), priority: 10)
+                .At(patrolState, chaseState, () => IsPlayerInRange(detectionRange), priority: 10)
+                .At(chaseState, attackState, () => IsPlayerInRange(attackRange), priority: 20)
+                .At(attackState, chaseState, () => !IsPlayerInRange(attackRange), priority: 5)
+                .At(chaseState, patrolState, () => !IsPlayerInRange(detectionRange) && HasPatrolPoints(), priority: 0)
+                .At(fleeState, idleState, () => health > fleeHealthThreshold, priority: 0)
+                 .Init(idleState);
+            
             fsm = builder.Build();
 
             if (debugLogs)
@@ -165,7 +174,7 @@ namespace FSM_Example
         // States
         // =====================================================
 
-        private class S_Idle : IState
+        public class S_Idle : IState
         {
             private readonly EnemyFSM owner;
             private float waitTime;
@@ -174,6 +183,8 @@ namespace FSM_Example
             {
                 owner = o;
             }
+
+            public string StateName => "Idle";
 
             public void OnEnter()
             {
@@ -200,7 +211,7 @@ namespace FSM_Example
             public Color GizmoState() => Color.green;
         }
 
-        private class S_Patrol : IState
+        public class S_Patrol : IState
         {
             private readonly EnemyFSM owner;
 
@@ -208,6 +219,8 @@ namespace FSM_Example
             {
                 owner = o;
             }
+
+            public string StateName => "Patrol";
 
             public void OnEnter()
             {
@@ -240,7 +253,7 @@ namespace FSM_Example
             public Color GizmoState() => Color.cyan;
         }
 
-        private class S_Chase : IState
+        public class S_Chase : IState
         {
             private readonly EnemyFSM owner;
 
@@ -248,6 +261,8 @@ namespace FSM_Example
             {
                 owner = o;
             }
+
+            public string StateName => "Chase";
 
             public void OnEnter()
             {
@@ -272,7 +287,7 @@ namespace FSM_Example
             public Color GizmoState() => Color.yellow;
         }
 
-        private class S_Attack : IState
+        public class S_Attack : IState
         {
             private readonly EnemyFSM owner;
             private float attackTimer;
@@ -282,6 +297,8 @@ namespace FSM_Example
             {
                 owner = o;
             }
+
+            public string StateName => "Attack";
 
             public void OnEnter()
             {
@@ -318,7 +335,7 @@ namespace FSM_Example
             public Color GizmoState() => Color.red;
         }
 
-        private class S_Flee : IState
+        public class S_Flee : IState
         {
             private readonly EnemyFSM owner;
             private Vector3 fleeDest;
@@ -328,6 +345,8 @@ namespace FSM_Example
             {
                 owner = o;
             }
+
+            public string StateName => "Flee";
 
             public void OnEnter()
             {
@@ -363,7 +382,7 @@ namespace FSM_Example
             public Color GizmoState() => Color.magenta;
         }
 
-        private class S_Dead : IState
+        public class S_Dead : IState
         {
             private readonly EnemyFSM owner;
 
@@ -371,6 +390,8 @@ namespace FSM_Example
             {
                 owner = o;
             }
+
+            public string StateName => "Dead";
 
             public void OnEnter()
             {
@@ -393,7 +414,40 @@ namespace FSM_Example
 
             public Color GizmoState() => Color.black;
         }
+        
+        public class S_Knockback : IState
+        {
+            private readonly EnemyFSM owner;
 
+            public S_Knockback(EnemyFSM o)
+            {
+                owner = o;
+            }
+
+            public string StateName => "Knockback";
+
+            public void OnEnter()
+            {
+                if (owner.debugLogs) Debug.Log($"{owner.name} ENTER Knockback");
+            }
+
+            public void Tick()
+            {
+                
+            }
+
+            public void FixedTick()
+            {
+            }
+
+            public void OnExit()
+            {
+                if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Knockback");
+            }
+
+            public Color GizmoState() => Color.white;
+        } 
+        
         // gizmos
         void OnDrawGizmosSelected()
         {
@@ -407,5 +461,4 @@ namespace FSM_Example
             Gizmos.DrawSphere(currentDestination, 0.12f);
         }
     }
-
 }

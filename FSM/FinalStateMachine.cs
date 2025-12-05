@@ -7,32 +7,67 @@ using UnityEngine;
 namespace OSK.AIFSM
 {
     /// <summary>
-    /// FinalStateMachine with richer Transition metadata for debugging and editor display.
-    /// - Transition contains Description (manual or auto from Expression), Priority, and last evaluation info.
-    /// - GetTransition picks the highest-priority true transition (any-transitions checked first).
-    /// - Tick logs evaluation results in the Editor (won't spam builds).
+    /// FSM TEMPLATE 1: Add(S…) → Any(A,enter) → Exit(exit) → At(A,B,cond) → Init(A) → Build()
+    /// FSM TEMPLATE 2:
+    /// ┌ builder = new FSMBuilder()
+    /// ├ .Add(S…)                  // register states
+    /// ├ .Any(A, ()=> Enter)        // any state → A
+    /// ├ .Exit(()=> Interrupt)      // exit current state
+    /// ├ .At(A, B, ()=>ExitCond)   // transition A → B
+    /// ├ .Init(A)                  // start at A
+    /// └ _fsm = builder.Build();    // get FinalStateMachine and use it
     /// </summary>
     public class FinalStateMachine
     {
         private readonly Dictionary<IState, List<Transition>> _transitions = new Dictionary<IState, List<Transition>>();
         private readonly List<Transition> _anyTransitions = new List<Transition>();
+        private readonly List<Transition> _exitTransitions = new List<Transition>(); // <- exit transitions
         private static readonly List<Transition> EmptyTransitions = new List<Transition>(0);
         private List<Transition> _currentTransitions = new List<Transition>();
         private IState _currentState;
         public bool DebugLogs { get; set; } = false;
 
-        // PUBLIC API ----------------------------------------------------------------
-
+        // Tick checks exit transitions first
         public void Tick()
         {
+            // 1) check exit transitions for current state
+            if (_currentState != null)
+            {
+                var exitForCurrent = _exitTransitions
+                    .Where(t => t.From == _currentState)
+                    .ToList();
+
+                if (exitForCurrent.Count > 0)
+                {
+                    var evalExit = EvaluateTransitions(exitForCurrent).Where(t => t.Result == true).ToList();
+                    if (evalExit.Count > 0)
+                    {
+                        // pick highest priority exit
+                        var chosenExit = evalExit.OrderByDescending(t => t.Priority).First();
+#if UNITY_EDITOR
+                        if (DebugLogs)
+                        {
+                            Debug.Log($"[FSM] EXIT TRIGGERED: '{chosenExit.GetDescription()}' on '{chosenExit.FromName}' at t={Time.time}");
+                        }
+#endif
+                        // force exit: call OnExit and clear current state (do not transition to any specific state)
+                        _currentState?.OnExit();
+                        _currentState = null;
+                        _currentTransitions = EmptyTransitions;
+                        chosenExit.MarkTriggered(Time.time);
+                        return; // stop this tick; let external logic or subsequent ticks decide next state
+                    }
+                }
+            }
+
+            // 2) normal transitions (any first)
             var transition = GetTransition();
             if (transition != null)
             {
-                // perform transition
 #if UNITY_EDITOR
                 if (DebugLogs)
                 {
-                    Debug.Log($"[FSM] Transition TRIGGERED: '{transition.GetDescription()}' from '{transition.FromName}' " +  $"-> '{transition.ToName}' (priority {transition.Priority}) at t={Time.time}");
+                    Debug.Log($"[FSM] Transition TRIGGERED: '{transition.GetDescription()}' from '{transition.FromName}' -> '{transition.ToName}' (priority {transition.Priority}) at t={Time.time}");
                 }
 #endif
                 Set(transition.To);
@@ -47,54 +82,42 @@ namespace OSK.AIFSM
             _currentState?.FixedTick();
         }
 
-        /// <summary>Initialize and enter start state.</summary>
         public void Init(IState state) => Set(state);
 
-        /// <summary>Return current state instance.</summary>
         public IState GetCurrentState() => _currentState;
-
-        /// <summary>Color of current state's gizmo (or black if none).</summary>
         public Color GetGizmoColor() => _currentState?.GizmoState() ?? Color.black;
-
-        /// <summary>Return current state's type name or "No State".</summary>
         public string GetCurrentStateName() => _currentState?.GetType().Name ?? "No State";
-
-        /// <summary>Return all states registered in this FSM.</summary>
         public List<IState> GetStates() => _transitions.Keys.ToList();
 
-        /// <summary>Return copy of transitions for a given state (for editor display).</summary>
         public List<Transition> GetTransitionsForState(IState state)
         {
             if (state == null) return new List<Transition>();
             return _transitions.TryGetValue(state, out var list) ? new List<Transition>(list) : new List<Transition>();
         }
 
-        /// <summary>Return copy of any-transitions (for editor display).</summary>
         public List<Transition> GetAnyTransitions() => new List<Transition>(_anyTransitions);
+        public List<Transition> GetExitTransitions() => new List<Transition>(_exitTransitions);
 
-        /// <summary>Remove a state and its transitions from the machine.</summary>
         public void Remove(IState state)
         {
             if (state == null) return;
             _transitions.Remove(state);
-            // remove any transitions targeting this state
             _anyTransitions.RemoveAll(t => t.To == state);
+            _exitTransitions.RemoveAll(t => t.From == state);
             foreach (var kv in _transitions.Values)
             {
                 kv.RemoveAll(t => t.To == state || t.From == state);
             }
         }
 
-        /// <summary>Clear all states and transitions.</summary>
         public void RemoveAll()
         {
             _transitions.Clear();
             _anyTransitions.Clear();
+            _exitTransitions.Clear();
             _currentTransitions.Clear();
             _currentState = null;
         }
-
-        // STATE & TRANSITION REGISTRATION --------------------------------------------
 
         public void Add(IState[] states)
         {
@@ -108,9 +131,6 @@ namespace OSK.AIFSM
             _transitions.Add(state, new List<Transition>());
         }
 
-        /// <summary>
-        /// Add a transition from -> to using a predicate and optional description/priority.
-        /// </summary>
         public void At(IState from, IState to, Func<bool> predicate, string description = null, int priority = 0)
         {
             if (from == null || to == null || predicate == null) return;
@@ -123,10 +143,6 @@ namespace OSK.AIFSM
             list.Add(new Transition(from, to, predicate, description, priority));
         }
 
-        /// <summary>
-        /// Overload: supply Expression to auto-generate a description (useful in editor).
-        /// The expression is compiled and used as the predicate.
-        /// </summary>
         public void At(IState from, IState to, Expression<Func<bool>> expr, int priority = 0)
         {
             if (from == null || to == null || expr == null) return;
@@ -141,14 +157,12 @@ namespace OSK.AIFSM
             list.Add(new Transition(from, to, compiled, description, priority, expr));
         }
 
-        /// <summary>Add 'any' transition (from any state into 'state').</summary>
         public void Any(IState state, Func<bool> predicate, string description = null, int priority = 0)
         {
             if (state == null || predicate == null) return;
             _anyTransitions.Add(new Transition(null, state, predicate, description, priority));
         }
 
-        /// <summary>Overload for Any with Expression to auto-generate description.</summary>
         public void Any(IState state, Expression<Func<bool>> expr, int priority = 0)
         {
             if (state == null || expr == null) return;
@@ -157,8 +171,22 @@ namespace OSK.AIFSM
             _anyTransitions.Add(new Transition(null, state, compiled, description, priority, expr));
         }
 
-        // PRIVATE STATE MANAGEMENT ---------------------------------------------------
+        // ---------------- Exit registration ----------------
+        public void Exit(IState from, Func<bool> predicate, string description = null, int priority = 0)
+        {
+            if (from == null || predicate == null) return;
+            _exitTransitions.Add(new Transition(from, null, predicate, description, priority));
+        }
 
+        public void Exit(IState from, Expression<Func<bool>> expr, int priority = 0)
+        {
+            if (from == null || expr == null) return;
+            var compiled = expr.Compile();
+            var description = expr.Body.ToString();
+            _exitTransitions.Add(new Transition(from, null, compiled, description, priority, expr));
+        }
+
+        // ----------------- private state mgmt ----------------
         private void Set(IState state)
         {
             _currentState?.OnExit();
@@ -176,6 +204,20 @@ namespace OSK.AIFSM
             }
         }
 
+        public void Exit<T>() where T : IState
+        {
+            if (_currentState is T)
+            {
+                _currentState?.OnExit();
+                _currentState = null;
+                _currentTransitions = EmptyTransitions;
+            }
+            else
+            {
+                Debug.LogError($"[FSM] Invalid State: {typeof(T).Name}");
+            }
+        }
+
         public void Exit()
         {
             _currentState?.OnExit();
@@ -183,27 +225,18 @@ namespace OSK.AIFSM
             _currentTransitions = EmptyTransitions;
         }
 
-        // TRANSITION RESOLUTION ------------------------------------------------------
-
-        /// <summary>
-        /// Evaluate transitions and return the best Transition to take (or null).
-        /// Priority logic: check _anyTransitions first (they can override), then current state's transitions.
-        /// Within a set, pick highest priority, tie-breaker = insertion order.
-        /// </summary>
+        // ---------------- transition resolution ----------------
         private Transition GetTransition()
         {
-            // Evaluate any-transitions
             var anyTrue = EvaluateTransitions(_anyTransitions)
                 .Where(t => t.Result == true && t.To != _currentState)
                 .ToList();
             if (anyTrue.Count > 0)
             {
-                // choose highest priority
                 var chosenAny = anyTrue.OrderByDescending(t => t.Priority).First();
                 return chosenAny;
             }
 
-            // Evaluate current state's transitions
             if (_currentTransitions == null || _currentTransitions.Count == 0) return null;
 
             var currTrue = EvaluateTransitions(_currentTransitions)
@@ -212,15 +245,10 @@ namespace OSK.AIFSM
 
             if (currTrue.Count == 0) return null;
 
-            // pick highest priority
             var chosen = currTrue.OrderByDescending(t => t.Priority).First();
             return chosen;
         }
 
-        /// <summary>
-        /// Evaluate a list of transitions and update their LastEvaluateTime/Result. Returns the evaluated list for convenience.
-        /// This method will also log each evaluation in the Editor with timestamp.
-        /// </summary>
         private IEnumerable<Transition> EvaluateTransitions(IEnumerable<Transition> list)
         {
             foreach (var t in list)
@@ -235,8 +263,7 @@ namespace OSK.AIFSM
                     if (DebugLogs)
                     {
 #if UNITY_EDITOR
-                        Debug.LogError($"[FSM] Transition condition threw exception: {e.Message}\n" +
-                                       $"Transition: {t.GetDescription()}");
+                        Debug.LogError($"[FSM] Transition condition threw exception: {e.Message}\nTransition: {t.GetDescription()}");
 #endif
                     }
 
@@ -248,8 +275,7 @@ namespace OSK.AIFSM
 #if UNITY_EDITOR
                 if (DebugLogs)
                 {
-                    Debug.Log($"[FSM] Eval '{t.GetDescription()}' (from '{t.FromName}' " +
-                              $"-> '{t.ToName}') => {ok} (priority {t.Priority}) at t={Time.time}");
+                    Debug.Log($"[FSM] Eval '{t.GetDescription()}' (from '{t.FromName}' -> '{t.ToName}') => {ok} (priority {t.Priority}) at t={Time.time}");
                 }
 #endif
 
@@ -263,6 +289,7 @@ namespace OSK.AIFSM
         /// Transition metadata class — public so Editor can read it.
         /// </summary>
         // --- Replace the old Transition nested class with this new one ---
+        // Transition class unchanged (kept as before)
         public class Transition
         {
             public IState From { get; }
@@ -272,9 +299,8 @@ namespace OSK.AIFSM
             public Expression<Func<bool>> Expr { get; }
             public int Priority { get; }
 
-            // debug info:
             public float LastEvaluatedTime { get; private set; } = -1f;
-            public bool? Result { get; private set; } = null; // null = not evaluated yet
+            public bool? Result { get; private set; } = null;
             public float LastTriggeredTime { get; private set; } = -1f;
 
             public Transition(IState from, IState to, Func<bool> condition, string description = null, int priority = 0,
@@ -303,13 +329,9 @@ namespace OSK.AIFSM
 
             public string FromName => From?.GetType().Name ?? "Any";
             public string ToName => To?.GetType().Name ?? "Null";
-
             public string GetDescription() => Description ?? (Expr != null ? SimplifyExpression(Expr) : "Lambda");
 
-            public override string ToString()
-            {
-                return $"[{Priority}] {GetDescription()} ({FromName} -> {ToName})";
-            }
+            public override string ToString() => $"[{Priority}] {GetDescription()} ({FromName} -> {ToName})";
 
             // -------------------- Pretty/Runtime-aware expression description --------------------
             // Try to produce friendly string like "dist 0.32 < 5"
