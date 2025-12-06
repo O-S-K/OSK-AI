@@ -1,7 +1,9 @@
+using System;
 using System.Collections;
 using OSK.AIFSM;
 using Sirenix.OdinInspector;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 public class EnemyFSM2 : FSMMono
 {
@@ -22,7 +24,13 @@ public class EnemyFSM2 : FSMMono
 
     private Vector3 destination;
     private int patrolIndex;
+    private Renderer renderer;
+    private Coroutine knockbackCoroutine; 
 
+    private void Awake()
+    {
+        renderer = GetComponentInChildren<Renderer>();
+    }
 
     // --------------------------------------------------------
     // CREATE STATES (the only thing subclasses implement)
@@ -66,17 +74,22 @@ public class EnemyFSM2 : FSMMono
 
     public void SetKnockBack()
     {
-        StartCoroutine(ChangeColor());
+        if (knockbackCoroutine != null)
+            StopCoroutine(knockbackCoroutine);
+        knockbackCoroutine =  StartCoroutine(TimeKnockback());
     }
 
-    private IEnumerator ChangeColor()
+    private IEnumerator TimeKnockback()
     {
-        var rend = GetComponentInChildren<Renderer>();
-        Color original = rend.material.color;
-        rend.material.color = Color.red;
-        yield return new WaitForSeconds(0.2f);
-        rend.material.color = original;
+        isKnockbacked = true; 
+        yield return new WaitForSeconds(0.5f);
         isKnockbacked = false;
+        knockbackCoroutine = null;
+    }
+    
+    public void SetColor(Color color)
+    {
+        renderer.material.color = color;
     }
 
     private bool ReachedDestination(float threshold = 0.6f)
@@ -104,7 +117,7 @@ public class EnemyFSM2 : FSMMono
         if (isKnockbacked)
             return;
         isKnockbacked = true;
-        TakeDamage(30f);
+        TakeDamage(10f);
     }
 
     [Button]
@@ -188,6 +201,7 @@ public class EnemyFSM2 : FSMMono
             waitTime = Random.Range(1f, 3f);
             owner.SetDestination(owner.transform.position); // clear dest
             if (owner.debugLogs) Debug.Log($"{owner.name} ENTER Idle (wait {waitTime:0.0}s)");
+            owner.SetColor(Color.white);
         }
 
         public void Tick()
@@ -263,6 +277,7 @@ public class EnemyFSM2 : FSMMono
         public void OnEnter()
         {
             if (owner.debugLogs) Debug.Log($"{owner.name} ENTER Chase");
+            owner.SetColor(Color.yellow);
         }
 
         public void Tick()
@@ -278,6 +293,7 @@ public class EnemyFSM2 : FSMMono
         public void OnExit()
         {
             if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Chase");
+            owner.SetColor(Color.white);
         }
 
         public Color GizmoState() => Color.yellow;
@@ -301,6 +317,7 @@ public class EnemyFSM2 : FSMMono
             attackTimer = 0f;
             if (owner.debugLogs) Debug.Log($"{owner.name} ENTER Attack");
             owner.SetDestination(owner.transform.position); // stop moving
+            owner.SetColor(Color.green);
         }
 
         public void Tick()
@@ -326,6 +343,7 @@ public class EnemyFSM2 : FSMMono
         public void OnExit()
         {
             if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Attack");
+            owner.SetColor(Color.white);
         }
 
         public Color GizmoState() => Color.red;
@@ -354,6 +372,7 @@ public class EnemyFSM2 : FSMMono
                 fleeDest = owner.transform.position - owner.transform.forward * 10f;
             owner.SetDestination(fleeDest);
             fleeTime = 2.0f;
+            owner.SetColor( Color.magenta);
         }
 
         public void Tick()
@@ -373,6 +392,7 @@ public class EnemyFSM2 : FSMMono
         public void OnExit()
         {
             if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Flee");
+            owner.SetColor(Color.white);
         }
 
         public Color GizmoState() => Color.magenta;
@@ -395,6 +415,7 @@ public class EnemyFSM2 : FSMMono
         {
             if (owner.debugLogs) Debug.Log($"{owner.name} ENTER Flee (hp={owner.health})");
             owner.SetKnockBack();
+            owner.SetColor(Color.blue);
         }
 
         public void Tick()
@@ -408,6 +429,7 @@ public class EnemyFSM2 : FSMMono
         public void OnExit()
         {
             if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Flee");
+            owner.SetColor(Color.white);
         }
 
 
@@ -429,8 +451,8 @@ public class EnemyFSM2 : FSMMono
         public void OnEnter()
         {
             if (owner.debugLogs) Debug.Log($"{owner.name} ENTER Dead");
-            // optional: play animation, disable collider, etc.
             owner.enabled = false; // stop Update & movement
+            owner.SetColor(Color.black);
         }
 
         public void Tick()
@@ -443,6 +465,7 @@ public class EnemyFSM2 : FSMMono
 
         public void OnExit()
         {
+            if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Dead");
         }
 
         public Color GizmoState() => Color.black;

@@ -69,9 +69,6 @@ namespace OSK.AIFSM
 #endif
                         chosenExit.MarkTriggered(Time.time);
 
-                        // Xử lý Logic Exit:
-                        // Nếu To != null -> Chuyển sang State đó (Interruption)
-                        // Nếu To == null -> Chỉ thoát khỏi State hiện tại (Tắt Layer / Weight 0)
                         if (chosenExit.To != null)
                         {
                             Set(chosenExit.To);
@@ -82,8 +79,6 @@ namespace OSK.AIFSM
                             _currentState = null;
                             _currentTransitions = EmptyTransitions;
                         }
-
-                        return;
                     }
                 }
             }
