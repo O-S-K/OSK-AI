@@ -39,9 +39,6 @@ namespace FSM_Example
         public float health;
 
         private FinalStateMachine fsm;
-
-        // expose for debug window/reflection
-        public FinalStateMachine FinalFsm => fsm;
         public FinalStateMachine GetFinalFSM() => fsm;
         public string GetFSMName() => gameObject.name + ".FinalFSM";
 
@@ -147,12 +144,11 @@ namespace FSM_Example
 
                 // Normal transitions (use expression variety)
                 .At(idleState, patrolState, () => HasPatrolPoints(), priority: 0)
-                .At(patrolState, idleState, () => false, priority: 0) // placeholder if you want timer
                 .At(idleState, chaseState, () => IsPlayerInRange(detectionRange), priority: 10)
                 .At(patrolState, chaseState, () => IsPlayerInRange(detectionRange), priority: 10)
                 .At(chaseState, attackState, () => IsPlayerInRange(attackRange), priority: 20)
-                .At(attackState, chaseState, () => !IsPlayerInRange(attackRange), priority: 5)
                 .At(chaseState, patrolState, () => !IsPlayerInRange(detectionRange) && HasPatrolPoints(), priority: 0)
+                .At(attackState, chaseState, () => !IsPlayerInRange(attackRange), priority: 5)
                 .At(fleeState, idleState, () => health > fleeHealthThreshold, priority: 0)
                  .Init(idleState);
             

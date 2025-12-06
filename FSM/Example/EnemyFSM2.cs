@@ -1,4 +1,6 @@
+using System.Collections;
 using OSK.AIFSM;
+using Sirenix.OdinInspector;
 using UnityEngine;
 
 public class EnemyFSM2 : FSMMono
@@ -12,7 +14,7 @@ public class EnemyFSM2 : FSMMono
 
     public float moveSpeed = 3.5f;
     public float rotateSpeed = 8f;
-    public float detectionRange = 6f;
+    public float detectionChaseRange = 5f;
     public float attackRange = 1.5f;
     public float health = 100f;
     public float fleeHealthThreshold = 25f;
@@ -39,20 +41,43 @@ public class EnemyFSM2 : FSMMono
     // --------------------------------------------------------
     // Example condition methods for transitions
     // --------------------------------------------------------
-    private bool IsPlayerInDetectionRange() => player && (player.position - transform.position).sqrMagnitude <= detectionRange * detectionRange;
-    private bool IsPlayerNotDetectionRange() => !(player && (player.position - transform.position).sqrMagnitude <= detectionRange * detectionRange);
 
-    private bool IsPlayerInAttackRange() => player && (player.position - transform.position).sqrMagnitude <= attackRange * attackRange;
-    private bool IsPlayerNotAttackRange() => !(player && (player.position - transform.position).sqrMagnitude <= attackRange * attackRange);
+    private bool CanSeePlayer()
+    {
+        if (player == null) return false;
+        Vector3 d = player.position - transform.position;
+        d.y = 0;
+        return d.sqrMagnitude <= (detectionChaseRange * detectionChaseRange);
+    }
 
-    private bool HasPatrolPoints() => patrolPoints != null && patrolPoints.Length > 0;
+    private bool CanAttackPlayer()
+    {
+        if (player == null) return false;
+        Vector3 d = player.position - transform.position;
+        d.y = 0;
+        return d.sqrMagnitude <= (attackRange * attackRange);
+    }
 
     private bool IsLowHP() => health <= fleeHealthThreshold && health > 0;
-    private bool IsHealthy() => health > fleeHealthThreshold;
     private bool IsDead() => health <= 0;
     private bool Knocked() => isKnockbacked;
 
     public void SetDestination(Vector3 pos) => destination = pos;
+
+    public void SetKnockBack()
+    {
+        StartCoroutine(ChangeColor());
+    }
+
+    private IEnumerator ChangeColor()
+    {
+        var rend = GetComponentInChildren<Renderer>();
+        Color original = rend.material.color;
+        rend.material.color = Color.red;
+        yield return new WaitForSeconds(0.2f);
+        rend.material.color = original;
+        isKnockbacked = false;
+    }
 
     private bool ReachedDestination(float threshold = 0.6f)
     {
@@ -65,17 +90,34 @@ public class EnemyFSM2 : FSMMono
     protected override void Update()
     {
         base.Update();
-        // test damage
-        if (Input.GetKeyDown(KeyCode.T))
-        {
-            TakeDamage(30f);
-        }
 
         // drive FSM
         fsm?.Tick();
 
-        // simple movement: move towards currentDestination if we have one
-        HandleMovement();
+        if (!isKnockbacked)
+            HandleMovement();
+    }
+
+    [Button]
+    public void TestKnockback()
+    {
+        if (isKnockbacked)
+            return;
+        isKnockbacked = true;
+        TakeDamage(30f);
+    }
+
+    [Button]
+    private void TestAddHealth()
+    {
+        health += 20f;
+        if (health > 100f) health = 100f;
+    }
+
+    [Button]
+    private void TestDie()
+    {
+        TakeDamage(999f);
     }
 
     protected void FixedUpdate()
@@ -102,7 +144,7 @@ public class EnemyFSM2 : FSMMono
             dir.y = 0;
             if (dir.sqrMagnitude > 0.001f)
             {
-                Vector3 move = dir.normalized * moveSpeed * Time.deltaTime;
+                Vector3 move = dir.normalized * (moveSpeed * Time.deltaTime);
                 if (move.sqrMagnitude > dir.sqrMagnitude) move = dir; // dont overshoot
                 transform.position += move;
 
@@ -116,14 +158,14 @@ public class EnemyFSM2 : FSMMono
     // gizmos
     void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, detectionRange);
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, attackRange);
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireSphere(transform.position, detectionChaseRange);
 
         // draw destination
         Gizmos.color = Color.green;
-        Gizmos.DrawSphere(destination, 0.12f);
+        Gizmos.DrawLine(transform.position, destination);
     }
 
     // --------------------------------------------------------
@@ -179,7 +221,6 @@ public class EnemyFSM2 : FSMMono
 
         public void OnEnter()
         {
-            if (!owner.HasPatrolPoints()) return;
             owner.patrolIndex = Mathf.Clamp(owner.patrolIndex, 0, Mathf.Max(0, owner.patrolPoints.Length - 1));
             var dest = owner.patrolPoints[owner.patrolIndex].position;
             owner.SetDestination(dest);
@@ -294,7 +335,7 @@ public class EnemyFSM2 : FSMMono
     {
         private readonly EnemyFSM2 owner;
         private Vector3 fleeDest;
-        private float fleeTime = 2.0f;
+        private float fleeTime = 5.0f;
 
         public S_Flee(EnemyFSM2 o)
         {
@@ -308,9 +349,9 @@ public class EnemyFSM2 : FSMMono
             if (owner.debugLogs) Debug.Log($"{owner.name} ENTER Flee (hp={owner.health})");
             if (owner.player != null)
                 fleeDest = owner.transform.position +
-                           (owner.transform.position - owner.player.position).normalized * 4f;
+                           (owner.transform.position - owner.player.position).normalized * 10f;
             else
-                fleeDest = owner.transform.position - owner.transform.forward * 4f;
+                fleeDest = owner.transform.position - owner.transform.forward * 10f;
             owner.SetDestination(fleeDest);
             fleeTime = 2.0f;
         }
@@ -336,6 +377,43 @@ public class EnemyFSM2 : FSMMono
 
         public Color GizmoState() => Color.magenta;
     }
+
+
+    public class S_Knockback : IState
+    {
+        private readonly EnemyFSM2 owner;
+        private Vector3 knockBackDest;
+
+        public S_Knockback(EnemyFSM2 o)
+        {
+            owner = o;
+        }
+
+        public string StateName => "Knockback";
+
+        public void OnEnter()
+        {
+            if (owner.debugLogs) Debug.Log($"{owner.name} ENTER Flee (hp={owner.health})");
+            owner.SetKnockBack();
+        }
+
+        public void Tick()
+        {
+        }
+
+        public void FixedTick()
+        {
+        }
+
+        public void OnExit()
+        {
+            if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Flee");
+        }
+
+
+        public Color GizmoState() => Color.white;
+    }
+
 
     public class S_Dead : IState
     {
@@ -368,37 +446,5 @@ public class EnemyFSM2 : FSMMono
         }
 
         public Color GizmoState() => Color.black;
-    }
-
-    public class S_Knockback : IState
-    {
-        private readonly EnemyFSM2 owner;
-
-        public S_Knockback(EnemyFSM2 o)
-        {
-            owner = o;
-        }
-
-        public string StateName => "Knockback";
-
-        public void OnEnter()
-        {
-            if (owner.debugLogs) Debug.Log($"{owner.name} ENTER Knockback");
-        }
-
-        public void Tick()
-        {
-        }
-
-        public void FixedTick()
-        {
-        }
-
-        public void OnExit()
-        {
-            if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Knockback");
-        }
-
-        public Color GizmoState() => Color.white;
     }
 }

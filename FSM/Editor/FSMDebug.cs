@@ -1,4 +1,4 @@
-namespace OSK.AIFSM.Editor
+namespace OSK.AIFSM
 {
 #if UNITY_EDITOR
     using System;
