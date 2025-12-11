@@ -1,6 +1,5 @@
 using OSK.AIFSM;
 using UnityEngine;
-using OSK.AIFSM.Editor;
 using Sirenix.OdinInspector;
 
 namespace FSM_Example

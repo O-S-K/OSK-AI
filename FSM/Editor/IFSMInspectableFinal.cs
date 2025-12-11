@@ -1,4 +1,4 @@
-namespace OSK.AIFSM.Editor
+namespace OSK.AIFSM
 {
     public interface IFSMInspectableFinal
     {

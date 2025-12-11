@@ -1,14 +1,13 @@
-namespace OSK.AIHFSM.Editor
-{
-    #if UNITY_EDITOR
-    using UnityEditor;
-    using UnityEngine;
-    using System;
-    using System.Linq;
-    using System.Collections.Generic;
-    using System.Reflection;
-    using OSK.AIHFSM; // adjust if needed
+#if UNITY_EDITOR
+using UnityEditor;
+using UnityEngine;
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.Reflection;
 
+namespace OSK.AIHFSM
+{
     /// <summary>
     /// Compact + colored FSMDebuggerWindow
     /// - Short, single-line transition descriptions
@@ -507,7 +506,5 @@ namespace OSK.AIHFSM.Editor
             Repaint();
         }
     }
-
-#endif
-
 }
+#endif

@@ -1,13 +1,12 @@
+#if UNITY_EDITOR
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEditor;
+using UnityEngine;
+
 namespace OSK.AIFSM
 {
-#if UNITY_EDITOR
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using OSK.AIFSM;
-    using UnityEditor;
-    using UnityEngine;
-
     /// <summary>
     /// FinalFSMDebuggerWindow - compact, colored, safe.
     /// - One-line transition display similar to HFSM screenshot.
@@ -663,5 +662,5 @@ namespace OSK.AIFSM
             }
         }
     }
-#endif
 }
+#endif
