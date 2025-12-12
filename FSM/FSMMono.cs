@@ -68,6 +68,16 @@ public abstract class FSMMono : MonoBehaviour
         UnityEditor.EditorUtility.SetDirty(this);
 #endif
     }
+    
+    [FoldoutGroup("At Transitions")]
+    [Button("Open FSM debug window", ButtonSizes.Medium), GUIColor(0.2f, .4f, 0.6f)]
+    private void ShowWindow()
+    {
+#if UNITY_EDITOR
+        FSMDebugWindow.ShowWindow(this);
+#endif
+    }
+     
 
     // --- BUILD LOGIC ---
     private void BuildFSM()

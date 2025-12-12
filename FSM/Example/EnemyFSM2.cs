@@ -185,6 +185,7 @@ namespace FSM_Example
         // --------------------------------------------------------
         // States (compact)
         // --------------------------------------------------------
+        [System.Serializable] 
         public class S_Idle : IState
         {
             private readonly EnemyFSM2 owner;
@@ -219,10 +220,9 @@ namespace FSM_Example
             {
                 if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Idle");
             }
-
-            public Color GizmoState() => Color.green;
         }
-
+        
+        [System.Serializable] 
         public class S_Patrol : IState
         {
             private readonly EnemyFSM2 owner;
@@ -260,10 +260,9 @@ namespace FSM_Example
             {
                 if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Patrol");
             }
-
-            public Color GizmoState() => Color.cyan;
         }
-
+        
+        [System.Serializable] 
         public class S_Chase : IState
         {
             private readonly EnemyFSM2 owner;
@@ -296,10 +295,9 @@ namespace FSM_Example
                 if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Chase");
                 owner.SetColor(Color.white);
             }
-
-            public Color GizmoState() => Color.yellow;
         }
-
+        
+        [System.Serializable] 
         public class S_Attack : IState
         {
             private readonly EnemyFSM2 owner;
@@ -346,10 +344,9 @@ namespace FSM_Example
                 if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Attack");
                 owner.SetColor(Color.white);
             }
-
-            public Color GizmoState() => Color.red;
         }
 
+        [System.Serializable] 
         public class S_Flee : IState
         {
             private readonly EnemyFSM2 owner;
@@ -395,11 +392,9 @@ namespace FSM_Example
                 if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Flee");
                 owner.SetColor(Color.white);
             }
-
-            public Color GizmoState() => Color.magenta;
         }
 
-
+        [System.Serializable] 
         public class S_Knockback : IState
         {
             private readonly EnemyFSM2 owner;
@@ -432,12 +427,9 @@ namespace FSM_Example
                 if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Flee");
                 owner.SetColor(Color.white);
             }
-
-
-            public Color GizmoState() => Color.white;
         }
 
-
+        [System.Serializable] 
         public class S_Dead : IState
         {
             private readonly EnemyFSM2 owner;
@@ -468,8 +460,6 @@ namespace FSM_Example
             {
                 if (owner.debugLogs) Debug.Log($"{owner.name} EXIT Dead");
             }
-
-            public Color GizmoState() => Color.black;
         }
     }
 }
