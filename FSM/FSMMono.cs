@@ -38,7 +38,72 @@ public abstract class FSMMono : MonoBehaviour
 
     protected abstract void CreateStates();
     protected virtual void OnFSMBuilt() { }
+    
+    protected virtual FSMBuilder CreateBuilder()
+    {
+        var builder = new FSMBuilder();
+        builder.AddAll(this); // default behavior
+        return builder;
+    }
+    
+    protected virtual void RegisterEditorTransitions(FSMBuilder builder)
+    {
+        IState ResolveState(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            var fi = GetType().GetField(name,
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+            return (fi != null && typeof(IState).IsAssignableFrom(fi.FieldType))
+                ? fi.GetValue(this) as IState
+                : null;
+        }
 
+        foreach (var td in transitions)
+        {
+            if (td?.cachedExpression == null) continue;
+            var from = ResolveState(td.fromFieldName);
+            var to = ResolveState(td.toFieldName);
+            if (from != null && to != null)
+                builder.At(from, to, td.cachedExpression, td.priority);
+        }
+
+        foreach (var td in anyTransitions)
+        {
+            if (td?.cachedExpression == null) continue;
+            var to = ResolveState(td.toFieldName);
+            if (to != null)
+                builder.Any(to, td.cachedExpression, td.priority);
+        }
+
+        foreach (var td in exitTransitions)
+        {
+            if (td?.cachedExpression == null) continue;
+            var from = ResolveState(td.fromFieldName);
+            var to = ResolveState(td.toFieldName);
+            if (from != null)
+                builder.Exit(from, to, td.cachedExpression, td.priority);
+        }
+    }
+
+    protected virtual void OnBuildCustomFSM(FSMBuilder builder) {}
+    protected virtual void FinalizeFSM(FSMBuilder builder)
+    {
+        if (IsStartState)
+        {
+            var start = GetType()
+                .GetField(startStateField,
+                    BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy)
+                ?.GetValue(this) as IState;
+
+            if (start != null)
+                builder.Init(start);
+        }
+
+        fsm = builder.Build();
+        fsm.DebugLogs = debugLogs;
+    }
+    
+    
     // --- EDITOR BUTTONS ---
     [FoldoutGroup("At Transitions")]
     [Button("New From", ButtonSizes.Medium), GUIColor(0.6f, 0.8f, 1f)]
@@ -84,61 +149,18 @@ public abstract class FSMMono : MonoBehaviour
     {
         CreateStates();
 
-        // 1. Setup Targets (Quan trọng để Editor hoạt động)
         foreach (var t in transitions) if (t != null) t.targetObject = this;
-        foreach (var t in anyTransitions) if (t != null) { t.targetObject = this; t.hideFromField = true; }
-        foreach (var t in exitTransitions) if (t != null) { t.targetObject = this; t.hideFromField = false; } // Exit vẫn cần From
+        foreach (var t in anyTransitions) if (t != null) t.targetObject = this;
+        foreach (var t in exitTransitions) if (t != null) t.targetObject = this;
 
-        // 2. Cache Expressions
-        GenerateAllExpressions(); 
-        
-        var builder = new FSMBuilder().AddAll(this);
+        GenerateAllExpressions();
 
-        IState ResolveState(string name)
-        {
-            if (name == "(Reset To Start)") return null; // Logic reset sau này
-            if (string.IsNullOrEmpty(name)) return null;
-            var fi = GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
-            return (fi != null && typeof(IState).IsAssignableFrom(fi.FieldType)) ? fi.GetValue(this) as IState : null;
-        }
+        var builder = CreateBuilder();
 
-        // 3. Register
-        foreach (var td in transitions)
-        {
-            if (td?.cachedExpression == null) continue;
-            var from = ResolveState(td.fromFieldName);
-            var to = ResolveState(td.toFieldName);
-            if (from != null && to != null) builder.At(from, to, td.cachedExpression, td.priority);
-        }
+        RegisterEditorTransitions(builder);   // editor-driven
+        OnBuildCustomFSM(builder);             // ⭐ runtime custom
+        FinalizeFSM(builder);
 
-        foreach (var td in anyTransitions)
-        {
-            if (td?.cachedExpression == null) continue;
-            var to = ResolveState(td.toFieldName);
-            if (to != null) builder.Any(to, td.cachedExpression, td.priority);
-        }
-
-        foreach (var td in exitTransitions)
-        {
-            if (td?.cachedExpression == null) continue;
-            var from = ResolveState(td.fromFieldName);
-            var to = ResolveState(td.toFieldName); // Có thể null
-            
-            if (from != null)
-            {
-                // Nếu to != null -> Interruption. Nếu null -> Pure Exit
-                builder.Exit(from, to, td.cachedExpression, td.priority);
-            }
-        }
-
-        if (IsStartState)
-        {
-            var start = ResolveState(startStateField);
-            if (start != null) builder.Init(start);
-        }
-        
-        fsm = builder.Build();
-        fsm.DebugLogs = debugLogs;
         OnFSMBuilt();
     }
 
