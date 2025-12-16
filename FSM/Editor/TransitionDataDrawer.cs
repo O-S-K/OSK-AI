@@ -53,10 +53,34 @@ namespace OSK.AIFSM
                 headerColor.a = 0.6f;
 
                 bool isActive = false;
+
                 if (Application.isPlaying && !td.hideFromField)
                 {
-                    isActive = FSMEditorUtils.IsCurrentStateActive(td.targetObject, td.fromFieldName);
-                    if (isActive) headerColor = new Color(0.1f, 0.8f, 0.2f, 0.9f);
+                    var current = FSMEditorUtils.GetCurrentState(td.targetObject);
+                    if (current != null)
+                    {
+                        var ownerType = td.targetObject.GetType();
+                        var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                        var fromField = ownerType.GetField(td.fromFieldName, flags);
+
+                        if (fromField != null)
+                        {
+                            var fromState = fromField.GetValue(td.targetObject) as IState;
+
+                            if (ReferenceEquals(current, fromState))
+                            {
+                                // CHECK CONDITION
+                                if (td.cachedExpression != null)
+                                {
+                                    try
+                                    {
+                                        isActive = td.cachedExpression.Compile().Invoke();
+                                    }
+                                    catch { isActive = false; }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 SirenixEditorGUI.BeginHorizontalToolbar(28);
@@ -431,6 +455,26 @@ namespace OSK.AIFSM
         private static readonly Dictionary<Type, string[]> _methodCache = new();
         private static readonly Dictionary<Type, string[]> _stateFieldCache = new();
 
+        public static IState GetCurrentState(object target)
+        {
+            if (target == null) return null;
+
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+
+            // tìm field FinalStateMachine
+            var fsmField = target.GetType()
+                .GetFields(flags)
+                .FirstOrDefault(f => typeof(FinalStateMachine).IsAssignableFrom(f.FieldType));
+
+            if (fsmField == null) return null;
+
+            var fsm = fsmField.GetValue(target);
+            if (fsm == null) return null;
+
+            var curField = fsm.GetType().GetField("_currentState", flags);
+            return curField?.GetValue(fsm) as IState;
+        }
+        
         public static string[] GetMethodListForType(Type compType)
         {
             if (compType == null) return new string[0];

@@ -47,6 +47,11 @@ namespace FSM_Example
             deadState = new S_Dead(this);
         }
 
+        protected override void OnBuildCustomFSM(FSMBuilder builder)
+        {
+            base.OnBuildCustomFSM(builder);
+        }
+
         // --------------------------------------------------------
         // Example condition methods for transitions
         // --------------------------------------------------------
@@ -104,9 +109,6 @@ namespace FSM_Example
         protected override void Update()
         {
             base.Update();
-
-            // drive FSM
-            fsm?.Tick();
 
             if (!isKnockbacked)
                 HandleMovement();

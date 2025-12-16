@@ -22,7 +22,7 @@ public abstract class FSMMono : MonoBehaviour
     [LabelText("Start State (field)")]
     public bool IsStartState = true;
 
-    [ValueDropdown("@GetStateFieldNames()")]
+    [ValueDropdown("@()")]
     [ShowIf(nameof(IsStartState))]
     [SerializeField] protected string startStateField;
 
@@ -160,7 +160,6 @@ public abstract class FSMMono : MonoBehaviour
         RegisterEditorTransitions(builder);   // editor-driven
         OnBuildCustomFSM(builder);             // ⭐ runtime custom
         FinalizeFSM(builder);
-
         OnFSMBuilt();
     }
 
