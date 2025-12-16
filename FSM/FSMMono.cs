@@ -22,7 +22,7 @@ public abstract class FSMMono : MonoBehaviour
     [LabelText("Start State (field)")]
     public bool IsStartState = true;
 
-    [ValueDropdown("@()")]
+    [ValueDropdown("@GetStateFieldNames()")]
     [ShowIf(nameof(IsStartState))]
     [SerializeField] protected string startStateField;
 
