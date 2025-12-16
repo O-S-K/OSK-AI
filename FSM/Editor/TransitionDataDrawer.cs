@@ -53,34 +53,11 @@ namespace OSK.AIFSM
                 headerColor.a = 0.6f;
 
                 bool isActive = false;
-
                 if (Application.isPlaying && !td.hideFromField)
                 {
-                    var current = FSMEditorUtils.GetCurrentState(td.targetObject);
-                    if (current != null)
-                    {
-                        var ownerType = td.targetObject.GetType();
-                        var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-                        var fromField = ownerType.GetField(td.fromFieldName, flags);
-
-                        if (fromField != null)
-                        {
-                            var fromState = fromField.GetValue(td.targetObject) as IState;
-
-                            if (ReferenceEquals(current, fromState))
-                            {
-                                // CHECK CONDITION
-                                if (td.cachedExpression != null)
-                                {
-                                    try
-                                    {
-                                        isActive = td.cachedExpression.Compile().Invoke();
-                                    }
-                                    catch { isActive = false; }
-                                }
-                            }
-                        }
-                    }
+                    isActive = FSMEditorUtils.IsCurrentStateActive(td.targetObject, td.fromFieldName);
+                    if (isActive) headerColor = new Color(0.1f, 0.8f, 0.2f, 0.9f);
+                     
                 }
 
                 SirenixEditorGUI.BeginHorizontalToolbar(28);
