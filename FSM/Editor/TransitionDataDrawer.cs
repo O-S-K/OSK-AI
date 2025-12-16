@@ -118,22 +118,7 @@ namespace OSK.AIFSM
             // body (giữ nguyên)
             SirenixEditorGUI.BeginHorizontalToolbar();
             {
-                if (!td.hideFromField) GUILayout.Space(24);
-                GUILayout.Label(EditorGUIUtility.IconContent("cs Script Icon"), GUILayout.Width(20), GUILayout.Height(18));
-
-                var condNames = FSMEditorUtils.GetMethodListForType(compType);
-                int condIdx = Array.IndexOf(condNames, td.conditionMethod);
-                if (condIdx < 0) GUIHelper.PushColor(new Color(1f, 0.7f, 0.7f));
-                int newCondIdx = SirenixEditorFields.Dropdown(condIdx, condNames, GUILayout.Width(110));
-                if (condIdx < 0) GUIHelper.PopColor();
-                if (newCondIdx != condIdx) td.conditionMethod = (newCondIdx >= 0 && condNames.Length > 0) ? condNames[newCondIdx] : null;
-
-                td.invertCondition = GUILayout.Toggle(td.invertCondition, "!", GUILayout.Width(18));
-                if (td.conditionMethod != null && td.conditionMethod.EndsWith("(param)"))
-                    td.conditionParam = EditorGUILayout.TextField(td.conditionParam, GUILayout.Width(50));
-
-                GUILayout.Label("➜", SirenixGUIStyles.CenteredGreyMiniLabel, GUILayout.Width(20));
-
+                #region State To
                 if (!td.hideToField)
                 {
                     var stateNamesTo = FSMEditorUtils.GetStateFieldNamesForType(compType);
@@ -165,11 +150,33 @@ namespace OSK.AIFSM
 
                     GUIHelper.PopColor();
                 }
+                
 
+                #endregion
+                GUILayout.Label("➜", SirenixGUIStyles.CenteredGreyMiniLabel, GUILayout.Width(20));
+                #region Condition
+                if (!td.hideFromField) GUILayout.Space(24);
+                GUILayout.Label(EditorGUIUtility.IconContent("cs Script Icon"), GUILayout.Width(20), GUILayout.Height(18));
+                var condNames = FSMEditorUtils.GetMethodListForType(compType);
+                int condIdx = Array.IndexOf(condNames, td.conditionMethod);
+                if (condIdx < 0) GUIHelper.PushColor(new Color(1f, 0.7f, 0.7f));
+                int newCondIdx = SirenixEditorFields.Dropdown(condIdx, condNames, GUILayout.Width(200));
+                if (condIdx < 0) GUIHelper.PopColor();
+                if (newCondIdx != condIdx) td.conditionMethod = (newCondIdx >= 0 && condNames.Length > 0) ? condNames[newCondIdx] : null;
+
+                td.invertCondition = GUILayout.Toggle(td.invertCondition, "!", GUILayout.Width(18));
+                if (td.conditionMethod != null && td.conditionMethod.EndsWith("(param)"))
+                    td.conditionParam = EditorGUILayout.TextField(td.conditionParam, GUILayout.Width(50));
+
+                #endregion
+
+                #region Priority
                 GUILayout.Label("P:", GUILayout.Width(12));
                 int newPriority = EditorGUILayout.IntField(td.priority, GUILayout.Width(30));
                 if (newPriority != td.priority) td.priority = newPriority;
 
+                #endregion
+              
                 GUILayout.FlexibleSpace();
 
                 if (GUILayout.Button(EditorGUIUtility.IconContent("d_CreateAddNew"), GUIStyle.none, GUILayout.Width(20), GUILayout.Height(20)))

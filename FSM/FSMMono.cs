@@ -210,6 +210,7 @@ public abstract class FSMMono : MonoBehaviour
         } catch { return pType.IsValueType ? Activator.CreateInstance(pType) : null; }
     }
     
+    // user for editor dropdowns
     protected IEnumerable<string> GetStateFieldNames()
     {
         return GetType()
